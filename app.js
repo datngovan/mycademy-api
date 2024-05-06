@@ -4,6 +4,7 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const User = require("./db/userModel");
 const auth = require("./auth");
+const port = process.env.PORT || 4000;
 
 // body parser configuration
 app.use(express.json());
@@ -133,6 +134,10 @@ app.get("/auth-endpoint", auth, (request, response) => {
 app.get("/", (request, response, next) => {
   response.json({ message: "Hey! This is your server response!" });
   next();
+});
+
+app.listen(port, () => {
+  console.log(`Example app listening on port ${port}`);
 });
 
 module.exports = app;
