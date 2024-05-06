@@ -5,7 +5,6 @@ const jwt = require("jsonwebtoken");
 const User = require("./db/userModel");
 const auth = require("./auth");
 const port = process.env.PORT || 4000;
-
 // body parser configuration
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
