@@ -1,142 +1,93 @@
+const { hashSync } = require("bcrypt");
 const express = require("express");
 const app = express();
-const bcrypt = require("bcrypt");
-const jwt = require("jsonwebtoken");
-const User = require("./db/userModel");
-const auth = require("./auth");
-const port = process.env.PORT || 4000;
-// body parser configuration
-app.use(express.json());
+const UserModel = require("./config/db");
+const session = require("express-session");
+const MongoStore = require("connect-mongo");
+const passport = require("passport");
+const cors = require("cors");
+
+const PORT = process.env.PORT || 5000;
+app.set("view engine", "ejs");
 app.use(express.urlencoded({ extended: true }));
-// require database connection
-const dbConnect = require("./db/dbConnection");
 
-// execute database connection
-dbConnect();
-// Curb Cores Error by adding a header here
-app.use((req, res, next) => {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader(
-    "Access-Control-Allow-Headers",
-    "Origin, X-Requested-With, Content, Accept, Content-Type, Authorization"
-  );
-  res.setHeader(
-    "Access-Control-Allow-Methods",
-    "GET, POST, PUT, DELETE, PATCH, OPTIONS"
-  );
-  next();
-});
-// register endpoint
-app.post("/register", (request, response) => {
-  // hash the password
-  console.log("request.body", request.body);
-  bcrypt
-    .hash(request.body.password, 10)
-    .then((hashedPassword) => {
-      // create a new user instance and collect the data
-      const user = new User({
-        email: request.body.email,
-        password: hashedPassword,
-      });
+app.use(
+  session({
+    secret: "keyboard cat",
+    resave: false,
+    saveUninitialized: false,
+    store: MongoStore.create({
+      mongoUrl:
+        "mongodb+srv://datngo:datngo123@cluster0.zkx2xob.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0",
+      collectionName: "sessions",
+    }),
+    cookie: {
+      maxAge: 1000 * 60 * 60 * 24,
+    },
+  })
+);
 
-      // save the new user
-      user
-        .save()
-        // return success if the new user is added to the database successfully
-        .then((result) => {
-          response.status(201).send({
-            message: "User Created Successfully",
-            result,
-          });
-        })
-        // catch error if the new user wasn't added successfully to the database
-        .catch((error) => {
-          response.status(500).send({
-            message: "Error creating user",
-            error,
-          });
-        });
-    })
-    // catch error if the password hash isn't successful
-    .catch((e) => {
-      response.status(500).send({
-        message: "Password was not hashed successfully",
-        e,
-      });
-    });
+require("./config/passport");
+
+app.use(passport.initialize());
+app.use(passport.session());
+app.use(cors());
+
+app.get("/login", (req, res) => {
+  res.render("login");
 });
 
-// login endpoint
-app.post("/login", (request, response) => {
-  // check if email exists
-  User.findOne({ email: request.body.email })
-
-    // if email exists
-    .then((user) => {
-      // compare the password entered and the hashed password found
-      bcrypt
-        .compare(request.body.password, user.password)
-
-        // if the passwords match
-        .then((passwordCheck) => {
-          // check if password matches
-          if (!passwordCheck) {
-            return response.status(400).send({
-              message: "Passwords does not match",
-              error,
-            });
-          }
-
-          //   create JWT token
-          const token = jwt.sign(
-            {
-              userId: user._id,
-              userEmail: user.email,
-            },
-            "RANDOM-TOKEN",
-            { expiresIn: "24h" }
-          );
-
-          //   return success response
-          response.status(200).send({
-            message: "Login Successful",
-            email: user.email,
-            token,
-          });
-        })
-        // catch error if password does not match
-        .catch((error) => {
-          response.status(400).send({
-            message: "Passwords does not match",
-            error,
-          });
-        });
-    })
-    // catch error if email does not exist
-    .catch((e) => {
-      response.status(404).send({
-        message: "Email not found",
-        e,
-      });
-    });
-});
-// free endpoint
-app.get("/free-endpoint", (request, response) => {
-  response.json({ message: "You are free to access me anytime" });
+app.get("/register", (req, res) => {
+  res.render("register");
 });
 
-// authentication endpoint
-app.get("/auth-endpoint", auth, (request, response) => {
-  response.json({ message: "You are authorized to access me" });
+app.post(
+  "/login",
+  passport.authenticate("local", {
+    successMessage: true,
+    failureMessage: true,
+  }),
+  (req, res) => {
+    if (req.isAuthenticated()) {
+      res.status(200).send("Authorized");
+    } else {
+      res.status(401).send({ msg: "Unauthorized" });
+    }
+    console.log(req.session);
+    console.log(req.user);
+  }
+);
+
+app.post("/register", (req, res) => {
+  let user = new UserModel({
+    username: req.body.username,
+    password: hashSync(req.body.password, 10),
+  });
+
+  user.save().then((user) => console.log(user));
+
+  res.send({ success: true });
 });
 
-app.get("/", (request, response, next) => {
-  response.json({ message: "Hey! This is your server response!" });
-  next();
+app.get("/logout", (req, res, next) => {
+  req.logout((error) => {
+    if (error) {
+      return next(error);
+    }
+    res.redirect("/login");
+  });
+});
+app.post("/logout");
+app.get("/sessions", (req, res) => {
+  if (req.isAuthenticated()) {
+    res.status(200).send({ msg: "Sessions Authorized" });
+  } else {
+    res.status(401).send({ msg: "Sessions Unauthorized" });
+  }
+  console.log("session::", req.session);
+  console.log("users:::", req.username);
 });
 
-app.listen(port, () => {
-  console.log(`Example app listening on port ${port}`);
+app.listen(PORT, (req, res) => {
+  console.log("Listening to port 5000");
 });
-
-module.exports = app;

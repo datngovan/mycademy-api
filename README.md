@@ -1,1 +1,0 @@
-# mycademy-api
